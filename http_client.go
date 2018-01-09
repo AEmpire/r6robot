@@ -1,4 +1,4 @@
-package main
+package R6Robot
 
 import (
 	"io/ioutil"
@@ -6,29 +6,23 @@ import (
 )
 
 //GetQcode 获取登录二维码
-func GetQcode() {
+func GetQcode() error {
 	resp, errResp := http.Get("https://ssl.ptlogin2.qq.com/ptqrshow?appid=501004106")
 
 	if errResp != nil {
-		println("请求错误")
-		return
+		return errResp
 	}
 	defer resp.Body.Close()
 	body, errRead := ioutil.ReadAll(resp.Body)
 
 	if errRead != nil {
-		println("响应读取错误")
-		return
+		return errRead
 	}
 
 	filename := "QCode.png"
 	errFileWrite := ioutil.WriteFile(filename, body, 0644)
 	if errFileWrite != nil {
-		println("写文件错误")
-		return
+		return errFileWrite
 	}
-}
-
-func main() {
-	GetQcode()
+	return nil
 }
