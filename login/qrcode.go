@@ -31,7 +31,7 @@ func GetQcode() (string, error) {
 		return "", errRead
 	}
 
-	filename := "~/图片/QCode.png"
+	filename := "/home/shili/图片/QCode.png"
 	errFileWrite := ioutil.WriteFile(filename, body, 0644)
 	if errFileWrite != nil {
 		return "", errFileWrite
