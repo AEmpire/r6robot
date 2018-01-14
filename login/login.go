@@ -50,24 +50,26 @@ type Gets struct {
 	Psessionid string
 	//发送消息
 	Uin int
-	//重要cookies
-	Cookies []*http.Cookie
-}
-
-//AddCookie 添加cookie
-func (g Gets) AddCookie(cookie *http.Cookie) {
-	g.Cookies = append(g.Cookies, cookie)
+	//cookies
+	Cookies map[string]string
 }
 
 const (
 	//urlVfqq 获取vfwebqq的固定url
-	urlVfqq = `https://s.web2.qq.com/api/getvfwebqq?ptwebqq=&clientid=53999199&psessionid=&t=1515849548201`
+	urlVfqq = `https://s.web2.qq.com/api/getvfwebqq?ptwebqq=&clientid=53999199&psessionid=&t=1515901255275`
 	//urlUin 获取uin以及psessionid的固定url
 	urlUin = `https://d1.web2.qq.com/channel/login2`
 )
 
+func addCookies2Req(req *http.Request){
+	for name, val := range cookies {
+		req.AddCookie(&http.Cookie{Name: name, Value: val, Expires: time.Now().Add(30 * 24 * time.Hour)})
+	}
+}
+
 //Login 登录QQ
 func Login() (Gets, error) {
+	//获取uin以及psessionid的表单内容
 	uinBody := uinPost{
 		Clientid:   53999199,
 		Status:     "online",
@@ -86,17 +88,17 @@ func Login() (Gets, error) {
 
 	//获取二维码
 	for !isScanned {
-		qrsig, err := GetQcode()
+		err := GetQcode()
 		if err != nil {
 			return loginGets, err
 		}
 	check_state:
 		for !isScanned {
-			resp, err := GetQRStat(qrsig)
+			resp, err := GetQRStat()
 			if err != nil {
 				return loginGets, err
 			}
-			switch code := regexStat.FindAllStringSubmatch(resp.Status, -1)[0][1]; code {
+			switch code := regexStat.FindAllStringSubmatch(resp, -1)[0][1]; code {
 			case `65`:
 				//二维码失效重新获取
 				fmt.Println("二维码已失效")
@@ -108,10 +110,10 @@ func Login() (Gets, error) {
 			case `0`:
 				fmt.Println("二维码认证成功")
 				//通过正则获取返回的url
-				sigLink = regexp.MustCompile(`ptuiCB\(\'0\',\'0\',\'([^\']+)\'`).FindAllStringSubmatch(resp.Status, -1)[0][1]
-				fmt.Println(sigLink)
-				loginGets.Cookies = resp.Cookies
+				sigLink = regexp.MustCompile(`ptuiCB\(\'0\',\'0\',\'([^\']+)\'`).FindAllStringSubmatch(resp, -1)[0][1]
+				//fmt.Println(sigLink)
 				isScanned = true
+				delete(cookies, "qrsig")
 			}
 			time.Sleep(3 * time.Second)
 		}
@@ -119,23 +121,45 @@ func Login() (Gets, error) {
 
 	//通过返回的url获取cookies
 	fmt.Println("cookies")
-	reqSig, err := http.Get(sigLink)
+	reqSig, err := http.NewRequest("GET", sigLink, nil)
 	if err != nil {
 		return loginGets, err
 	}
-	println(reqSig.StatusCode)
 	
+	addCookies2Req(reqSig)
+	//http包会默认追踪重定向，故使用自定义CheckRedirect
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+        return http.ErrUseLastResponse
+    }
+	respSig, err := client.Do(reqSig)
+	if err != nil {
+		return loginGets, err
+	}
+	for _, co := range respSig.Cookies() {
+		switch co.Name {
+		case "p_skey":
+			if len(co.Value) > 0 {
+				cookies["p_skey"] = co.Value
+			}
+		case "p_uin":
+			if len(co.Value) > 0 {
+				cookies["p_uin"] = co.Value
+			}
+		case "pt4_token":
+			if len(co.Value) > 0 {
+				cookies["pt4_token"] = co.Value
+			}
+		}
+	}
+
 	//获取vfwebqq
 	fmt.Println("vfwebqq")
-	reqVf, err := http.NewRequest("Get", urlVfqq, nil)
+	reqVf, err := http.NewRequest("GET", urlVfqq, nil)
 	if err != nil {
 		return loginGets, err
 	}
-	for _, cookie := range loginGets.Cookies {
-		reqVf.AddCookie(cookie)
-	}
+	addCookies2Req(reqVf)
 	reqVf.Header.Set("Referer", "https://s.web2.qq.com/proxy.html?v=20130916001&callback=1&id=1")
-	client := &http.Client{}
 	respVf, err := client.Do(reqVf)
 	if err != nil {
 		return loginGets, err
@@ -152,13 +176,12 @@ func Login() (Gets, error) {
 	//获取uin与psessionid
 	fmt.Println("uin")
 	uinpost, err := json.Marshal(uinBody)
-	reqUin, err := http.NewRequest("POST", urlUin, bytes.NewBuffer(uinpost))
+	uinForm := "r="+string(uinpost)
+	reqUin, err := http.NewRequest("POST", urlUin, bytes.NewBuffer([]byte(uinForm)))
 	if err != nil {
 		return loginGets, err
 	}
-	for _, cookie := range loginGets.Cookies {
-		reqUin.AddCookie(cookie)
-	}
+	addCookies2Req(reqUin)
 	reqUin.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	respUin, err := client.Do(reqUin)
 	if err != nil {
@@ -173,6 +196,6 @@ func Login() (Gets, error) {
 	}
 	loginGets.Psessionid = uinret.Result.Psessionid
 	loginGets.Uin = uinret.Result.Uin
-
+	loginGets.Cookies = cookies
 	return loginGets, nil
 }

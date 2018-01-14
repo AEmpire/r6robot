@@ -10,24 +10,36 @@
 
 二维码登录，可通过调用github.com/AEmpire/r6robot/login包实现
 
+接收信息
+
+发送信息
+
 ```go
 package main
 
 import (
-    "github.com/AEmpire/r6robot/login"
+	"fmt"
+	"github.com/AEmpire/r6robot/login"
+	"github.com/AEmpire/r6robot/message"
 )
 
 func main() {
-    login.Login()
+	c := make(chan message.MessageRcvd)
+
+	get, err := login.Login()
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(get)
+	go message.Poll(get, c)
+
+	message.Send(get, c)
 }
+
 
 ```
 
 ### 待完成
-
-接收信息
-
-发送信息
 
 R6Stat RESTful API 调用
 
