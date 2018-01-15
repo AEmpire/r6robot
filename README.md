@@ -14,34 +14,20 @@
 
 发送信息
 
+R6Stat RESTful API 调用
+
 ```go
 package main
 
 import (
-	"fmt"
-	"github.com/AEmpire/r6robot/login"
-	"github.com/AEmpire/r6robot/message"
+	"github.com/AEmpire/r6robot"
 )
 
 func main() {
-	c := make(chan message.MessageRcvd)
-
-	get, err := login.Login()
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println(get)
-	go message.Poll(get, c)
-
-	message.Send(get, c)
+	r6robot.R6robot()
 }
-
-
 ```
 
-### 待完成
-
-R6Stat RESTful API 调用
 
 ## Authors
 

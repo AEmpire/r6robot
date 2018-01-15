@@ -3,7 +3,6 @@ package login
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"regexp"
@@ -61,7 +60,7 @@ const (
 	urlUin = `https://d1.web2.qq.com/channel/login2`
 )
 
-func addCookies2Req(req *http.Request){
+func addCookies2Req(req *http.Request) {
 	for name, val := range cookies {
 		req.AddCookie(&http.Cookie{Name: name, Value: val, Expires: time.Now().Add(30 * 24 * time.Hour)})
 	}
@@ -101,14 +100,8 @@ func Login() (Gets, error) {
 			switch code := regexStat.FindAllStringSubmatch(resp, -1)[0][1]; code {
 			case `65`:
 				//二维码失效重新获取
-				fmt.Println("二维码已失效")
 				break check_state
-			case `66`:
-				fmt.Println("二维码未失效")
-			case `67`:
-				fmt.Println("二维码认证中")
 			case `0`:
-				fmt.Println("二维码认证成功")
 				//通过正则获取返回的url
 				sigLink = regexp.MustCompile(`ptuiCB\(\'0\',\'0\',\'([^\']+)\'`).FindAllStringSubmatch(resp, -1)[0][1]
 				//fmt.Println(sigLink)
@@ -120,17 +113,16 @@ func Login() (Gets, error) {
 	}
 
 	//通过返回的url获取cookies
-	fmt.Println("cookies")
 	reqSig, err := http.NewRequest("GET", sigLink, nil)
 	if err != nil {
 		return loginGets, err
 	}
-	
+
 	addCookies2Req(reqSig)
 	//http包会默认追踪重定向，故使用自定义CheckRedirect
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-        return http.ErrUseLastResponse
-    }
+		return http.ErrUseLastResponse
+	}
 	respSig, err := client.Do(reqSig)
 	if err != nil {
 		return loginGets, err
@@ -153,7 +145,6 @@ func Login() (Gets, error) {
 	}
 
 	//获取vfwebqq
-	fmt.Println("vfwebqq")
 	reqVf, err := http.NewRequest("GET", urlVfqq, nil)
 	if err != nil {
 		return loginGets, err
@@ -174,9 +165,8 @@ func Login() (Gets, error) {
 	loginGets.Vfwebqq = vfret.Result.Vfwebqq
 
 	//获取uin与psessionid
-	fmt.Println("uin")
 	uinpost, err := json.Marshal(uinBody)
-	uinForm := "r="+string(uinpost)
+	uinForm := "r=" + string(uinpost)
 	reqUin, err := http.NewRequest("POST", urlUin, bytes.NewBuffer([]byte(uinForm)))
 	if err != nil {
 		return loginGets, err

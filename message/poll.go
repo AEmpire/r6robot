@@ -3,7 +3,6 @@ package message
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -59,13 +58,15 @@ func Poll(get login.Gets, c chan MessageRcvd) {
 	formBody, err := json.Marshal(form)
 	formPost := []byte("r=" + string(formBody))
 	if err != nil {
-		fmt.Println(err)
+		log := time.Now().String() + err.Error()
+		ioutil.WriteFile("/home/shili/error.log", []byte(log), 0644)
 		return
 	}
 	for {
 		req, err := http.NewRequest("POST", urlPoll, bytes.NewBuffer(formPost))
 		if err != nil {
-			fmt.Println(err)
+			log := time.Now().String() + err.Error()
+			ioutil.WriteFile("/home/shili/error.log", []byte(log), 0644)
 			return
 		}
 		req.Header.Set("Origin", "https://d1.web2.qq.com")
@@ -77,7 +78,8 @@ func Poll(get login.Gets, c chan MessageRcvd) {
 		}
 		client := http.Client{}
 		if errCount > 5 {
-			fmt.Println("读取信息错误，请重新登录")
+			log := time.Now().String() + "读取信息错误，请重新登录"
+			ioutil.WriteFile("/home/shili/error.log", []byte(log), 0644)
 			return
 		}
 		resp, err := client.Do(req)
@@ -86,7 +88,8 @@ func Poll(get login.Gets, c chan MessageRcvd) {
 				errCount = 0
 				continue
 			} else {
-				fmt.Println("Poll Error,", err.Error())
+				log := time.Now().String() + "Poll Error," + err.Error()
+				ioutil.WriteFile("/home/shili/error.log", []byte(log), 0644)
 				errCount++
 				continue
 			}
@@ -95,11 +98,11 @@ func Poll(get login.Gets, c chan MessageRcvd) {
 		body, err := ioutil.ReadAll(resp.Body)
 		err = json.Unmarshal(body, &mess)
 		if mess.Retcode != 0 && mess.Retcode != 100012 {
-			fmt.Println(mess.Retmsg)
+			log := time.Now().String() + mess.Retmsg
+			ioutil.WriteFile("/home/shili/error.log", []byte(log), 0644)
 			close(c)
 			return
 		}
-		fmt.Println(mess)
 		//将返回结果输入channel
 		c <- mess
 	}
