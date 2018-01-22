@@ -1,6 +1,7 @@
 package login
 
 import (
+	"gopkg.in/gomail.v2"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -26,6 +27,10 @@ func hash33(qrsig string) int {
 
 //GetQcode 获取登录二维码
 func GetQcode() error {
+	m := gomail.NewMessage()
+	m.SetHeader("From", "username@gmail.com")
+	m.SetHeader("To", "username@qq.com")
+	m.SetHeader("Subject", "Hello!")
 	cookies = make(map[string]string)
 	cookies["pgv_pvi"] = "2677229032"
 	cookies["pvi_si"] = "s3883232818"
@@ -51,6 +56,10 @@ func GetQcode() error {
 
 	filename := "/home/shili/QCode.png"
 	err = ioutil.WriteFile(filename, body, 0644)
+	m.Embed("/home/shili/QCode.png")
+	m.SetBody("text/html", `<img src="cid:image.png" alt="My image" />`)
+	d := gomail.NewDialer("smtp.gmail.com", 465, "username", "password")
+	err = d.DialAndSend(m)
 	if err != nil {
 		return err
 	}

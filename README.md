@@ -8,7 +8,7 @@
 
 ### 已完成
 
-二维码登录，可通过调用github.com/AEmpire/r6robot/login包实现
+二维码登录并发送至指定邮箱
 
 接收信息
 
@@ -27,7 +27,8 @@ func main() {
 	r6robot.R6robot()
 }
 ```
-
+### 待完成
+加入config文件以及命令行选项
 
 ## Authors
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -25,6 +26,7 @@ type postForm struct {
 
 //MessageRcvd 接受消息的JSON
 type MessageRcvd struct {
+	Errmsg string
 	Result []struct {
 		PollType string `json:"poll_type"`
 		Value    struct {
@@ -43,7 +45,7 @@ type MessageRcvd struct {
 }
 
 //Poll 接受消息
-func Poll(get login.Gets, c chan MessageRcvd) {
+func Poll(get login.Gets, c chan MessageRcvd, quit chan string) {
 	//添加容错机制
 	errCount := 0
 
@@ -58,15 +60,20 @@ func Poll(get login.Gets, c chan MessageRcvd) {
 	formBody, err := json.Marshal(form)
 	formPost := []byte("r=" + string(formBody))
 	if err != nil {
+		fd, _ := os.OpenFile("/home/shili/error.log", os.O_RDWR|os.O_APPEND, 0644)
+		defer fd.Close()
 		log := time.Now().String() + err.Error()
-		ioutil.WriteFile("/home/shili/error.log", []byte(log), 0644)
+		fd.WriteString(log)
 		return
 	}
+poll_messages:
 	for {
 		req, err := http.NewRequest("POST", urlPoll, bytes.NewBuffer(formPost))
 		if err != nil {
+			fd, _ := os.OpenFile("/home/shili/error.log", os.O_RDWR|os.O_APPEND, 0644)
+			defer fd.Close()
 			log := time.Now().String() + err.Error()
-			ioutil.WriteFile("/home/shili/error.log", []byte(log), 0644)
+			fd.WriteString(log)
 			return
 		}
 		req.Header.Set("Origin", "https://d1.web2.qq.com")
@@ -77,31 +84,57 @@ func Poll(get login.Gets, c chan MessageRcvd) {
 			req.AddCookie(&http.Cookie{Name: name, Value: val, Expires: time.Now().Add(30 * 24 * time.Hour)})
 		}
 		client := http.Client{}
-		if errCount > 5 {
-			log := time.Now().String() + "读取信息错误，请重新登录"
-			ioutil.WriteFile("/home/shili/error.log", []byte(log), 0644)
+		if errCount > 10 {
+			quit <- "quit"
+			fd, _ := os.OpenFile("/home/shili/error.log", os.O_RDWR|os.O_APPEND, 0644)
+			defer fd.Close()
+			log := time.Now().String() + "读取信息错误，请重新登录" + "\n"
+			fd.WriteString(log)
 			return
 		}
 		resp, err := client.Do(req)
 		if err != nil {
 			if strings.Contains(err.Error(), "timeout") {
 				errCount = 0
-				continue
-			} else {
-				log := time.Now().String() + "Poll Error," + err.Error()
-				ioutil.WriteFile("/home/shili/error.log", []byte(log), 0644)
+				continue poll_messages
+			} else if strings.Contains(err.Error(), "reset") {
+				fd, _ := os.OpenFile("/home/shili/error.log", os.O_RDWR|os.O_APPEND, 0644)
+				defer fd.Close()
+				log := time.Now().String() + "Connection has been reset, trying relogining"
+				fd.WriteString(log)
 				errCount++
-				continue
+				return
+			} else {
+				fd, _ := os.OpenFile("/home/shili/error.log", os.O_RDWR|os.O_APPEND, 0644)
+				defer fd.Close()
+				log := time.Now().String() + "Poll Error," + err.Error()
+				fd.WriteString(log)
+				errCount++
+				continue poll_messages
 			}
 		}
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
 		err = json.Unmarshal(body, &mess)
 		if mess.Retcode != 0 && mess.Retcode != 100012 {
+			fd, _ := os.OpenFile("/home/shili/error.log", os.O_RDWR|os.O_APPEND, 0644)
+			defer fd.Close()
 			log := time.Now().String() + mess.Retmsg
-			ioutil.WriteFile("/home/shili/error.log", []byte(log), 0644)
+			fd.WriteString(log)
 			close(c)
 			return
+		}
+		if mess.Errmsg != "error" {
+			fd, _ := os.OpenFile("/home/shili/access.log", os.O_RDWR|os.O_APPEND, 0644)
+			defer fd.Close()
+			log := time.Now().String() + "Poll Success!!!" + "\n"
+			fd.WriteString(log)
+		} else {
+			errCount++
+			fd, _ := os.OpenFile("/home/shili/access.log", os.O_RDWR|os.O_APPEND, 0644)
+			defer fd.Close()
+			log := time.Now().String() + "Poll error!!!" + "\n"
+			fd.WriteString(log)
 		}
 		//将返回结果输入channel
 		c <- mess
